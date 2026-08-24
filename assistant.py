@@ -8,10 +8,38 @@ import platform
 import shlex
 import shutil
 import os
+import json
 import requests
+from datetime import datetime
 from dotenv import load_dotenv
 
+# Try to import Vosk for offline speech recognition
+try:
+    from vosk import Model, KaldiRecognizer
+    import pyaudio
+    VOSK_AVAILABLE = True
+except ImportError:
+    VOSK_AVAILABLE = False
+
 load_dotenv()  # Load environment variables from .env
+
+REMINDERS_FILE = os.path.join(os.path.dirname(__file__), 'reminders.json')
+
+def load_reminders():
+    if not os.path.exists(REMINDERS_FILE):
+        return []
+    try:
+        with open(REMINDERS_FILE, 'r') as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def save_reminders(reminders):
+    try:
+        with open(REMINDERS_FILE, 'w') as f:
+            json.dump(reminders, f, indent=2)
+    except Exception as e:
+        print(f"Failed to save reminders: {e}")
 
 class Assistant:
     def __init__(self, use_voice=False):
@@ -29,7 +57,32 @@ class Assistant:
         self.email_subject = os.getenv("EMAIL_SUBJECT")
         self.email_body = os.getenv("EMAIL_BODY")
         
-        if use_voice:
+        # Reminders
+        self.reminders = load_reminders()
+        self.last_reminder_check = 0
+        
+        # Voice setup
+        if self.use_voice and VOSK_AVAILABLE:
+            print("Loading Vosk model for offline speech recognition...")
+            model_path = os.path.join(os.path.dirname(__file__), "vosk_model")
+            if not os.path.exists(model_path):
+                print(f"Vosk model not found at {model_path}. Please download a model.")
+                self.use_voice = False
+            else:
+                self.vosk_model = Model(model_path)
+                self.vosk_recognizer = KaldiRecognizer(self.vosk_model, 16000)
+                self.audio_interface = pyaudio.PyAudio()
+                self.audio_stream = self.audio_interface.open(
+                    format=pyaudio.paInt16,
+                    channels=1,
+                    rate=16000,
+                    input=True,
+                    frames_per_buffer=8000
+                )
+                self.audio_stream.start_stream()
+                print("Voice capabilities enabled (Vosk offline)")
+        elif self.use_voice and not VOSK_AVAILABLE:
+            print("Vosk not available, falling back to online SpeechRecognition (may need audio utilities)")
             try:
                 import speech_recognition as sr
                 import pyttsx3
@@ -37,7 +90,7 @@ class Assistant:
                 self.microphone = sr.Microphone()
                 self.tts_engine = pyttsx3.init()
                 self.tts_engine.setProperty('rate', 150)
-                print("Voice capabilities enabled")
+                print("Voice capabilities enabled (online)")
             except ImportError as e:
                 print(f"Voice dependencies not available: {e}")
                 print("Falling back to text mode")
@@ -49,22 +102,62 @@ class Assistant:
         """Output text via speech or print"""
         print(f"Assistant: {text}")
         if self.use_voice:
-            self.tts_engine.say(text)
-            self.tts_engine.runAndWait()
+            # Use pyttsx3 if available, else fallback to print
+            try:
+                self.tts_engine.say(text)
+                self.tts_engine.runAndWait()
+            except AttributeError:
+                # Fallback if tts_engine not initialized (e.g., Vosk only)
+                pass
+    
+    def listen_vosk(self, timeout=None):
+        """Listen using Vosk and return recognized text, or None on timeout/error"""
+        import time as time_module
+        start = time_module.time()
+        while True:
+            if timeout is not None and (time_module.time() - start) > timeout:
+                return None
+            data = self.audio_stream.read(4000, exception_on_overflow=False)
+            if len(data) == 0:
+                time_module.sleep(0.1)
+                continue
+            if self.vosk_recognizer.AcceptWaveform(data):
+                result = json.loads(self.vosk_recognizer.Result())
+                text = result.get('text', '')
+                if text:
+                    return text.strip()
+            else:
+                # Partial result (optional)
+                pass
     
     def listen(self):
         """Get input via voice or text"""
         if self.use_voice:
-            with self.microphone as source:
+            if VOSK_AVAILABLE and hasattr(self, 'vosk_recognizer'):
+                # Use Vosk
                 print("Listening...")
                 try:
-                    audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=5)
-                    command = self.recognizer.recognize_google(audio).lower()
+                    command = self.listen_vosk(timeout=5)
+                    if command is None:
+                        print("Listening timed out")
+                        return None
                     print(f"You said: {command}")
-                    return command
+                    return command.lower()
                 except Exception as e:
-                    print(f"Voice error: {e}")
-                    self.speak("Sorry, I didn't understand that.")
+                    print(f"Voice error (Vosk): {e}")
+                    return None
+            else:
+                # Fallback to online SpeechRecognition
+                try:
+                    import speech_recognition as sr
+                    with self.microphone as source:
+                        print("Listening...")
+                        audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=5)
+                        command = self.recognizer.recognize_google(audio).lower()
+                        print(f"You said: {command}")
+                        return command
+                except Exception as e:
+                    print(f"Voice error (online): {e}")
                     return None
         else:
             # Text input mode
@@ -146,6 +239,8 @@ class Assistant:
         elif 'exit' in command or 'quit' in command or 'goodbye' in command:
             self.speak("Goodbye!")
             sys.exit(0)
+        elif 'remind me to' in command:
+            self.handle_reminder_command(command)
         elif 'open' in command:
             # Handle open commands with optional URL and browser
             url = None
@@ -169,38 +264,39 @@ class Assistant:
             else:
                 self.speak("I'm not sure how to do that yet. Try saying 'calculator', 'open text editor', 'send email', or 'what time is it'")
     
-    def open_url(self, url, use_chrome=False):
-        """Open a URL in the specified browser if possible"""
-        try:
-            if use_chrome:
-                # Try to open with Google Chrome specifically
-                if self.system == "windows":
-                    subprocess.Popen(['start', 'chrome', url], shell=True)
-                elif self.system == "darwin":  # macOS
-                    subprocess.Popen(['open', '-a', 'Google Chrome', url])
-                else:  # Linux and others
-                    # Try google-chrome executable
-                    if shutil.which('google-chrome'):
-                        subprocess.Popen(['google-chrome', url])
-                    elif shutil.which('chromium-browser'):
-                        subprocess.Popen(['chromium-browser', url])
-                    elif shutil.which('chromium'):
-                        subprocess.Popen(['chromium', url])
-                    else:
-                        # Fallback to xdg-open
-                        subprocess.Popen(['xdg-open', url])
-            else:
-                # Default browser
-                if self.system == "windows":
-                    subprocess.Popen(['start', url], shell=True)
-                elif self.system == "darwin":  # macOS
-                    subprocess.Popen(['open', url])
-                else:  # Linux and others
-                    subprocess.Popen(['xdg-open', url])
-            self.speak(f"Opening {url}")
-        except Exception as e:
-            print(f"Error opening URL: {e}")
-            self.speak("Sorry, I couldn't open the URL.")
+    def handle_reminder_command(self, command):
+        """Parse and set a reminder from command like 'remind me to buy milk at 14:30'"""
+        # Expected format: remind me to <task> at <HH:MM>
+        import re
+        match = re.search(r'remind me to (.+?) at (\d{1,2}):(\d{2})', command)
+        if not match:
+            self.speak("Sorry, I didn't understand the reminder format. Please say: remind me to <task> at <HH:MM>")
+            return
+        task = match.group(1).strip()
+        hour = int(match.group(2))
+        minute = int(match.group(3))
+        if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+            self.speak("Please provide a valid time (HH:MM in 24-hour format).")
+            return
+        time_str = f"{hour:02d}:{minute:02d}"
+        reminder = {"task": task, "time": time_str, "created": datetime.now().isoformat(), "triggered": False}
+        self.reminders.append(reminder)
+        save_reminders(self.reminders)
+        self.speak(f"Okay, I'll remind you to {task} at {time_str}.")
+    
+    def check_reminders(self):
+        """Check if any reminders should be triggered now"""
+        now = datetime.now()
+        current_time = now.strftime("%H:%M")
+        # Only check once per minute to avoid excessive reminders
+        if now.second < 5 and self.last_reminder_check != now.minute:
+            self.last_reminder_check = now.minute
+            for r in self.reminders:
+                if not r.get("triggered", False) and r["time"] == current_time:
+                    # Trigger reminder
+                    self.speak(f"Reminder: {r['task']}")
+                    r["triggered"] = True
+                    save_reminders(self.reminders)
     
     def open_text_editor(self):
         try:
@@ -265,6 +361,39 @@ class Assistant:
         except Exception as e:
             print(f"Error opening terminal: {e}")
             self.speak("Sorry, I couldn't open the terminal")
+    
+    def open_url(self, url, use_chrome=False):
+        """Open a URL in the specified browser if possible"""
+        try:
+            if use_chrome:
+                # Try to open with Google Chrome specifically
+                if self.system == "windows":
+                    subprocess.Popen(['start', 'chrome', url], shell=True)
+                elif self.system == "darwin":  # macOS
+                    subprocess.Popen(['open', '-a', 'Google Chrome', url])
+                else:  # Linux and others
+                    # Try google-chrome executable
+                    if shutil.which('google-chrome'):
+                        subprocess.Popen(['google-chrome', url])
+                    elif shutil.which('chromium-browser'):
+                        subprocess.Popen(['chromium-browser', url])
+                    elif shutil.which('chromium'):
+                        subprocess.Popen(['chromium', url])
+                    else:
+                        # Fallback to xdg-open
+                        subprocess.Popen(['xdg-open', url])
+            else:
+                # Default browser
+                if self.system == "windows":
+                    subprocess.Popen(['start', url], shell=True)
+                elif self.system == "darwin":  # macOS
+                    subprocess.Popen(['open', url])
+                else:  # Linux and others
+                    subprocess.Popen(['xdg-open', url])
+            self.speak(f"Opening {url}")
+        except Exception as e:
+            print(f"Error opening URL: {e}")
+            self.speak("Sorry, I couldn't open the URL.")
     
     def tell_time(self):
         current_time = time.strftime("%I:%M %p")
@@ -353,6 +482,8 @@ class Assistant:
                         self.process_wake_word(command)
                     else:
                         self.process_command(command)
+                # Check reminders each loop (lightweight)
+                self.check_reminders()
                 time.sleep(0.1)  # Small delay to prevent excessive CPU usage
         except KeyboardInterrupt:
             self.speak("Goodbye!")
@@ -360,5 +491,5 @@ class Assistant:
 
 if __name__ == "__main__":
     # Start in text mode by default - change to True to test voice when dependencies work
-    assistant = Assistant(use_voice=False)
+    assistant = Assistant(use_voice=True)
     assistant.run()

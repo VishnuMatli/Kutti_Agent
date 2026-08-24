@@ -1,6 +1,6 @@
 # JARVIS‑Like Multimodal Assistant (Hey Kutti)
 
-A modular, cross‑platform personal assistant that responds to the wake word **“Hey Kutti”**, uses a large language model (Groq/NVIDIA) for understanding, can launch applications, send emails, tell time/date, and is ready to be extended with hand/face gestures, eye‑tracking, and a futuristic holographic GUI.
+A modular, cross‑platform personal assistant that responds to the wake word **“Hey Kutti”**, uses a large language model (Groq/NVIDIA) for understanding, can launch applications, send emails, set reminders, tell time/date, and is ready to be extended with hand/face gestures, eye‑tracking, and a futuristic holographic GUI.
 
 ---
 
@@ -10,7 +10,8 @@ A modular, cross‑platform personal assistant that responds to the wake word **
 |---------|--------|-------------|
 | **Wake‑word detection** | ✅ (text mode) | Listens for “Hey Kutti” and replies with a personalized greeting. |
 | **LLM integration** | ✅ (Groq API) | Sends user queries to a large language model (default `groq/compound`) and speaks the answer. |
-| **Command handling** | ✅ | Recognizes keywords: `calculator`, `open browser`, `open text editor`, `open terminal`, `send email`, `time`, `date`, `exit`. |
+| **Command handling** | ✅ | Recognizes keywords: `calculator`, `open browser`, `open text editor`, `open terminal`, `send email`, `remind me to`, `time`, `date`, `exit`. |
+| **Reminders** | ✅ | Set time‑based reminders with natural language: “remind me to <task> at <HH:MM>”. Stored in `reminders.json`. |
 | **Email sending** | ✅ | Uses Gmail SMTP with App Password; can read credentials from `.env` or prompt interactively. |
 | **Cross‑platform app launch** | ✅ | Works on Windows, macOS, and Linux (opens default apps). |
 | **Extensible design** | 🛠️ | Voice, gesture, face, eye‑tracking, and GUI modules can be plugged in. |
@@ -26,6 +27,7 @@ A modular, cross‑platform personal assistant that responds to the wake word **
 ├─ assistant.py          # Main assistant logic
 ├─ .env                  # API keys & email credentials (see Configuration)
 ├─ requirements.txt      # Python dependencies
+├─ reminders.json        # Stores reminders (auto‑created)
 ├─ README.md             # This file
 ├─ SUCCESS_SUMMARY.md   # Detailed feasibility & next‑steps guide
 └─ (optional) demo.py    # Simple demonstration script
@@ -59,6 +61,7 @@ pyttsx3==2.90
 python-dotenv==1.0.1
 requests==2.32.3
 openai==1.50.0   # used only if you switch to the NVIDIA endpoint
+vosk==0.3.45     # offline speech recognition fallback (optional)
 ```
 
 > **Note:** The `SpeechRecognition` package requires the system library `portaudio`.  
@@ -122,6 +125,7 @@ Try commands like:
 - `open browser` → opens your default web browser
 - `open text editor` → opens gedit/kate/notepad
 - `send email` → sends an email using the values in `.env` (or prompts if you run the script in a terminal)
+- `remind me to buy milk at 14:30` → sets a reminder
 - `exit` → quits the program
 
 ---
@@ -160,6 +164,8 @@ The assistant is built to support speech, but the current environment is missing
    ```
 
    You should hear the assistant’s response via the default audio output.
+
+> **Alternative offline recognizer:** The project also bundles `vosk` as a fallback. If you prefer an offline recognizer that does not rely on the standard `aifc` module, you can modify the assistant to use Vosk by loading a small model (e.g., `vosk-model-small-en-us-0.15`). This requires downloading the model (~50 MB) and pointing the code to its location. For simplicity, the current implementation attempts to use the online Google Speech API via `speech_recognition`; if that fails due to missing `aifc`, the assistant falls back to text mode.
 
 ---
 
@@ -203,6 +209,7 @@ The assistant is built to support speech, but the current environment is missing
 | `pyaudio` installation fails | Missing `portaudio` development headers | `sudo apt-get install portaudio19-dev` then `pip install --force-reinstall pyaudio`. |
 | Email sending fails with `Username and Password not accepted` | Wrong credentials or 2‑Step Verification not enabled | Ensure 2‑Step Verification is on; use an **App Password**, not your regular password; double‑check `.env` values (no quotes). |
 | LLM returns 400/413 errors | Invalid model name or request too large | Verify the model exists in the provider’s list (Groq: `groq/compound`, `openai/gpt-oss-20b`, etc.); reduce `max_tokens` or simplify the prompt. |
+| Reminder not triggering | Time format mismatch or system clock off | Ensure you use 24‑hour HH:MM format; check that the system time is correct. |
 | Assistant does not respond to wake word | Text input not containing the exact phrase (case‑insensitive) | Speak/type “hey kutti” exactly; the assistant looks for the substring. |
 
 ---
@@ -217,7 +224,7 @@ This project is provided as‑is for educational and experimental purposes. Feel
 
 - **Groq** – for providing fast LLM inference via an OpenAI‑compatible API.  
 - **NVIDIA** – for the Nemotron‑3 Super model (alternative endpoint).  
-- **Open‑source libraries**: SpeechRecognition, pyttsx3, python‑dotenv, requests, MediaPipe, OpenCV, Three.js.  
+- **Open‑source libraries**: SpeechRecognition, pyttsx3, python‑dotenv, requests, MediaPipe, OpenCV, Vosk, Three.js.  
 
 --- 
 
