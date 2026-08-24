@@ -42,7 +42,7 @@ def save_reminders(reminders):
         print(f"Failed to save reminders: {e}")
 
 class Assistant:
-    def __init__(self, use_voice=False):
+    def __init__(self, use_voice=True):
         self.use_voice = use_voice
         self.system = platform.system().lower()
         # Try Groq first, then NVIDIA as fallback
@@ -70,14 +70,19 @@ class Assistant:
                 self.use_voice = False
             else:
                 self.vosk_model = Model(model_path)
-                self.vosk_recognizer = KaldiRecognizer(self.vosk_model, 16000)
+                # Get default sample rate from first input device
                 self.audio_interface = pyaudio.PyAudio()
+                info = self.audio_interface.get_device_info_by_index(0)
+                self.sample_rate = int(info['defaultSampleRate'])
+                print(f"Using sample rate: {self.sample_rate} Hz")
+                self.vosk_recognizer = KaldiRecognizer(self.vosk_model, self.sample_rate)
                 self.audio_stream = self.audio_interface.open(
                     format=pyaudio.paInt16,
                     channels=1,
-                    rate=16000,
+                    rate=self.sample_rate,
                     input=True,
-                    frames_per_buffer=8000
+                    frames_per_buffer=8000,
+                    input_device_index=0   # use first mic
                 )
                 self.audio_stream.start_stream()
                 print("Voice capabilities enabled (Vosk offline)")
