@@ -408,30 +408,34 @@ class Assistant:
         current_date = time.strftime("%A, %B %d, %Y")
         self.speak(f"Today is {current_date}")
     
-    def _get_response(self, prompt):
-        """Get a response from user, using voice if enabled, else text input."""
-        if self.use_voice:
-            self.speak(prompt)
-            # Try up to 2 times to get non-empty response
-            for _ in range(2):
-                resp = self.listen()
-                if resp and resp.strip():
-                    return resp.strip()
-                self.speak("I didn't catch that. Please repeat.")
-            # If still empty, return empty string
-            return ""
-        else:
-            return input(prompt).strip()
-
     def send_email(self):
         """Send a simple email (requires configuration)"""
-        # If not interactive (e.g., called from a script), use env values and send directly
-        if not sys.stdin.isatty():
+        # Determine if we are in interactive mode (terminal)
+        interactive = sys.stdin.isatty()
+        
+        self.speak("I'll help you send an email.")
+        
+        # Get details: if interactive, prompt; else use environment variables
+        if interactive:
+            to = input(f"To: ") or self.email_to or ""
+            if not to:
+                to = input("To: ")
+            subject = input(f"Subject: ") or self.email_subject or ""
+            if not subject:
+                subject = input("Subject: ")
+            body = input(f"Body: ") or self.email_body or ""
+            if not body:
+                body = input("Body: ")
+            sender_email = self.email_user or input("Your email address: ")
+            password = self.email_app_password or input("Your email app password: ")
+        else:
+            # Non-interactive: rely on environment variables
             to = self.email_to
             subject = self.email_subject
             body = self.email_body
             sender_email = self.email_user
             password = self.email_app_password
+            # If any missing, we cannot send
             if not all([to, subject, body, sender_email, password]):
                 missing = []
                 if not to: missing.append("To (EMAIL_TO)")
@@ -441,85 +445,6 @@ class Assistant:
                 if not password: missing.append("Password (EMAIL_APP_PASSWORD)")
                 self.speak(f"Email sending skipped: missing {', '.join(missing)}. Set these in .env or run in interactive mode.")
                 return
-            # Proceed to send without preview
-            try:
-                msg = MIMEMultipart()
-                msg['From'] = sender_email
-                msg['To'] = to
-                msg['Subject'] = subject
-                msg.attach(MIMEText(body, 'plain'))
-                server = smtplib.SMTP('smtp.gmail.com', 587)
-                server.starttls()
-                server.login(sender_email, password)
-                text = msg.as_string()
-                server.sendmail(sender_email, to, text)
-                server.quit()
-                self.speak("Email sent successfully")
-            except Exception as e:
-                print(f"Email error: {e}")
-                self.speak("Sorry, I couldn't send the email. Please check your email configuration.")
-            return
-
-        self.speak("I'll help you send an email.")
-        
-        # Get details
-        to = self._get_response(f"To: [{self.email_to or ''}]: ")
-        if not to:
-            to = self.email_to
-        if not to:
-            to = self._get_response("To: ")
-        
-        subject = self._get_response(f"Subject: [{self.email_subject or ''}]: ")
-        if not subject:
-            subject = self.email_subject
-        if not subject:
-            subject = self._get_response("Subject: ")
-        
-        raw_body = self._get_response(f"Body: [{self.email_body or ''}]: ")
-        if not raw_body:
-            raw_body = self.email_body
-        if not raw_body:
-            raw_body = self._get_response("Body: ")
-        
-        # Rewrite body using LLM
-        self.speak("Let me think about how to phrase your message...")
-        rewrite_prompt = f"Please rewrite the following email body to be clear, polite, and professional, preserving the original meaning:\n\n{raw_body}"
-        rewritten_body = self.query_llm(rewrite_prompt)
-        # If LLM fails, fallback to raw body
-        if rewritten_body.startswith("Sorry, I encountered an error") or not rewritten_body:
-            self.speak("I couldn't rewrite the body; using your original text.")
-            rewritten_body = raw_body
-    
-        # Show preview (print and optionally speak)
-        print("\n--- Email Preview ---")
-        print(f"From: {self.email_user}")
-        print(f"To: {to}")
-        print(f"Subject: {subject}")
-        print("Body:")
-        print(rewritten_body)
-        print("---------------------\n")
-        if self.use_voice:
-            preview_speech = f"From: {self.email_user}. To: {to}. Subject: {subject}. Body: {rewritten_body}"
-            self.speak(preview_speech)
-        
-        # Ask for confirmation
-        confirm = self._get_response("Send this email? (yes/no): ").lower()
-        if confirm not in ("yes", "y"):
-            self.speak("Email sending cancelled.")
-            return
-        
-        # Use environment credentials if available, otherwise prompt
-        sender_email = self._get_response(f"Your email address: [{self.email_user or ''}]: ")
-        if not sender_email:
-            sender_email = self.email_user
-        if not sender_email:
-            sender_email = self._get_response("Your email address: ")
-        
-        password = self._get_response(f"Your email app password: [{self.email_app_password or ''}]: ")
-        if not password:
-            password = self.email_app_password
-        if not password:
-            password = self._get_response("Your email app password: ")
         
         try:
             # Create message
@@ -528,7 +453,7 @@ class Assistant:
             msg['To'] = to
             msg['Subject'] = subject
             
-            msg.attach(MIMEText(rewritten_body, 'plain'))
+            msg.attach(MIMEText(body, 'plain'))
             
             # Send email
             server = smtplib.SMTP('smtp.gmail.com', 587)
@@ -542,6 +467,7 @@ class Assistant:
         except Exception as e:
             print(f"Email error: {e}")
             self.speak("Sorry, I couldn't send the email. Please check your email configuration.")
+
     def run(self):
         """Main loop for the assistant"""
         self.speak("Assistant initialized. Waiting for wake word 'Hey Kutti'...")
@@ -570,5 +496,5 @@ class Assistant:
 
 if __name__ == "__main__":
     # Start in text mode by default - change to True to test voice when dependencies work
-    assistant = Assistant(use_voice=False)
+    assistant = Assistant(use_voice=True)
     assistant.run()

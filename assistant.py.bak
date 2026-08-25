@@ -475,31 +475,22 @@ class Assistant:
         if not subject:
             subject = self._get_response("Subject: ")
         
-        raw_body = self._get_response(f"Body: [{self.email_body or ''}]: ")
-        if not raw_body:
-            raw_body = self.email_body
-        if not raw_body:
-            raw_body = self._get_response("Body: ")
+        body = self._get_response(f"Body: [{self.email_body or ''}]: ")
+        if not body:
+            body = self.email_body
+        if not body:
+            body = self._get_response("Body: ")
         
-        # Rewrite body using LLM
-        self.speak("Let me think about how to phrase your message...")
-        rewrite_prompt = f"Please rewrite the following email body to be clear, polite, and professional, preserving the original meaning:\n\n{raw_body}"
-        rewritten_body = self.query_llm(rewrite_prompt)
-        # If LLM fails, fallback to raw body
-        if rewritten_body.startswith("Sorry, I encountered an error") or not rewritten_body:
-            self.speak("I couldn't rewrite the body; using your original text.")
-            rewritten_body = raw_body
-    
         # Show preview (print and optionally speak)
         print("\n--- Email Preview ---")
         print(f"From: {self.email_user}")
         print(f"To: {to}")
         print(f"Subject: {subject}")
         print("Body:")
-        print(rewritten_body)
+        print(body)
         print("---------------------\n")
         if self.use_voice:
-            preview_speech = f"From: {self.email_user}. To: {to}. Subject: {subject}. Body: {rewritten_body}"
+            preview_speech = f"From: {self.email_user}. To: {to}. Subject: {subject}. Body: {body}"
             self.speak(preview_speech)
         
         # Ask for confirmation
@@ -528,7 +519,7 @@ class Assistant:
             msg['To'] = to
             msg['Subject'] = subject
             
-            msg.attach(MIMEText(rewritten_body, 'plain'))
+            msg.attach(MIMEText(body, 'plain'))
             
             # Send email
             server = smtplib.SMTP('smtp.gmail.com', 587)
@@ -542,6 +533,7 @@ class Assistant:
         except Exception as e:
             print(f"Email error: {e}")
             self.speak("Sorry, I couldn't send the email. Please check your email configuration.")
+        return
     def run(self):
         """Main loop for the assistant"""
         self.speak("Assistant initialized. Waiting for wake word 'Hey Kutti'...")
