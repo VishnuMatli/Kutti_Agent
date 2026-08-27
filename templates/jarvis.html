@@ -1,0 +1,1677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J.A.R.V.I.S. Voice Assistant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #000000;
+            --primary-cyan: #00ffff;
+            --primary-blue: #00bfff;
+            --accent-red: #ff0000;
+            --accent-orange: #ff4500;
+            --text-white: #ffffff;
+            --text-gray: #cccccc;
+            --glow-cyan: 0 0 5px #00ffff, 0 0 10px #00ffff, 0 0 15px #00ffff;
+            --glow-red: 0 0 5px #ff0000, 0 0 10px #ff0000, 0 0 15px #ff0000;
+            --glow-orange: 0 0 5px #ff4500, 0 0 10px #ff4500, 0 0 15px #ff4500;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-white);
+            font-family: 'Exo 2', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .jarvis-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, rgba(0,10,20,0.8) 0%, black 100%);
+            /* Subtle background network effect - using repeating linear gradient for lines */
+            background-image: 
+                repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,255,255,0.05) 1px, rgba(0,255,255,0.05) 2px),
+                repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(0,255,255,0.05) 1px, rgba(0,255,255,0.05) 2px);
+            background-size: 20px 20px;
+        }
+
+        /* Header / Top-Level Status Bar */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 30px;
+            border-bottom: 1px solid rgba(0,255,255,0.1);
+        }
+
+        .left-section {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
+        }
+
+        .stark-text {
+            font-size: 1.8rem;
+            font-weight: 700;
+            text-shadow: var(--glow-red);
+            color: var(--primary-cyan);
+        }
+
+        .industries-text {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            letter-spacing: 1px;
+        }
+
+        .jarvis-text {
+            font-size: 1.5rem;
+            font-weight: 600;
+            text-shadow: var(--glow-cyan);
+            color: var(--primary-cyan);
+        }
+
+        .ai-system-text {
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+
+        .id-profile {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .user-icon {
+            width: 24px;
+            height: 24px;
+            background-color: var(--primary-cyan);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: var(--bg-color);
+            text-shadow: var(--glow-cyan);
+        }
+
+        .id-text {
+            font-size: 0.85rem;
+        }
+
+        .center-section {
+            text-align: center;
+        }
+
+        .ram-label {
+            font-size: 0.9rem;
+            color: var(--primary-cyan);
+            text-shadow: var(--glow-cyan);
+        }
+
+        .ram-value {
+            font-size: 2.2rem;
+            font-weight: 600;
+            color: var(--text-white);
+            text-shadow: 0 0 3px #fff, 0 0 6px #fff;
+        }
+
+        .ram-graph {
+            width: 120px;
+            height: 20px;
+            margin-top: 5px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .ram-graph-fill {
+            height: 100%;
+            background: linear-gradient(to right, var(--primary-cyan), var(--text-white));
+            width: 63%; /* Dynamic */
+            position: relative;
+        }
+
+        .ram-graph-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: scan 2s linear infinite;
+        }
+
+        @keyframes scan {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .right-section {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 10px;
+        }
+
+        .system-buttons {
+            display: flex;
+            gap: 15px;
+        }
+
+        .sys-button {
+            padding: 8px 15px;
+            border: 1px solid var(--primary-cyan);
+            border-radius: 4px;
+            background: transparent;
+            color: var(--primary-cyan);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-shadow: var(--glow-cyan);
+        }
+
+        .sys-button:hover {
+            background: rgba(0,255,255,0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 0 8px rgba(0,255,255,0.3);
+        }
+
+        .sys-button.shutdown {
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+            text-shadow: var(--glow-red);
+        }
+
+        .sys-button.shutdown:hover {
+            background: rgba(255,0,0,0.1);
+            box-shadow: 0 0 8px rgba(255,0,0,0.3);
+        }
+
+        .date-time-section {
+            text-align: right;
+        }
+
+        .date-large {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: var(--primary-cyan);
+            text-shadow: var(--glow-cyan);
+        }
+
+        .day-text {
+            font-size: 1.1rem;
+            opacity: 0.8;
+            color: var(--primary-cyan);
+        }
+
+        .icon-grid {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .icon-item {
+            width: 24px;
+            height: 24px;
+            background-color: rgba(0,255,255,0.2);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-center;
+            font-size: 0.9rem;
+            color: var(--primary-cyan);
+            text-shadow: var(--glow-cyan);
+            border: 1px solid rgba(0,255,255,0.3);
+            transition: all 0.2s ease;
+        }
+
+        .icon-item:hover {
+            background-color: rgba(0,255,255,0.3);
+            transform: scale(1.1);
+        }
+
+        /* Main Content Area */
+        .main-content {
+            display: flex;
+            height: calc(100% - 140px); /* Adjust for header and footer */
+            position: relative;
+            padding: 0 30px;
+        }
+
+        /* Left Side Panel */
+        .left-panel {
+            width: 200px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding-top: 20px;
+        }
+
+        .control-panel-label {
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary-cyan);
+            text-shadow: var(--glow-cyan);
+            letter-spacing: 2px;
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-button {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--primary-cyan);
+            border-radius: 4px;
+            color: var(--text-white);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-shadow: var(--glow-cyan);
+        }
+
+        .control-button:hover {
+            background: rgba(0,255,255,0.15);
+            transform: translateX(5px);
+            box-shadow: 0 0 6px rgba(0,255,255,0.2);
+        }
+
+        .control-button.active {
+            background: var(--primary-cyan);
+            color: var(--bg-color);
+            box-shadow: 0 0 10px var(--primary-cyan);
+        }
+
+        .vertical-gauge {
+            width: 20px;
+            height: 100%;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            margin-left: auto;
+            position: relative;
+        }
+
+        .gauge-fill {
+            height: 70%; /* Dynamic */
+            width: 100%;
+            background: linear-gradient(to top, var(--primary-cyan), var(--text-white));
+            border-bottom-left-radius: 10px;
+            border-bottom-right-radius: 10px;
+            position: absolute;
+            bottom: 0;
+        }
+
+        /* Center Field */
+        .center-field {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 20px;
+        }
+
+        /* Central Asset (Wireframe Helmet) - Using CSS shapes for simplicity */
+        .central-asset {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+        }
+
+        .wireframe-helmet {
+            width: 180px;
+            height: 200px;
+            border: 2px solid var(--primary-cyan);
+            border-radius: 50% 50% 40% 40% / 60% 60% 40% 40%;
+            position: relative;
+        }
+
+        .wireframe-helmet::before,
+        .wireframe-helmet::after {
+            content: '';
+            position: absolute;
+            border: 2px solid var(--primary-cyan);
+        }
+
+        /* Helmet details */
+        .wireframe-helmet::before {
+            top: 30%;
+            left: 15%;
+            width: 70%;
+            height: 40%;
+            border-radius: 40% 40% 30% 30%;
+        }
+
+        .wireframe-helmet::after {
+            top: 10%;
+            left: 25%;
+            width: 50%;
+            height: 20%;
+            border-radius: 50%;
+        }
+
+        .eyes {
+            position: absolute;
+            top: 35%;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            pointer-events: none;
+        }
+
+        .eye {
+            width: 18px;
+            height: 12px;
+            background: var(--accent-red);
+            border-radius: 50%;
+            box-shadow: var(--glow-red);
+            animation: pulse 1.5s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { opacity: 0.6; }
+            to { opacity: 1; }
+        }
+
+        .arc-reactor {
+            position: absolute;
+            bottom: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 30px;
+            background: var(--accent-orange);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent-orange), 0 0 20px var(--accent-orange);
+            animation: reactor-pulse 2s infinite ease-in-out;
+        }
+
+        @keyframes reactor-pulse {
+            0%, 100% { transform: translateX(-50%) scale(1); }
+            50% { transform: translateX(-50%) scale(1.1); }
+        }
+
+        .helmet-dialogue {
+            position: absolute;
+            bottom: -40px;
+            text-align: center;
+            width: 100%;
+        }
+
+        .jarvis-label {
+            font-size: 1.1rem;
+            color: var(--primary-cyan);
+            text-shadow: var(--glow-cyan);
+        }
+
+        .user-command {
+            font-size: 0.9rem;
+            color: var(--text-gray);
+            margin-top: 5px;
+        }
+
+        /* Chat Interface */
+        .chat-interface {
+            grid-column: 1 / -1;
+            margin-top: 20px;
+            height: 300px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            overflow-y: auto;
+            padding: 15px;
+            border: 1px solid rgba(0,255,255,0.2);
+        }
+
+        .chat-message {
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 10px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+        .chat-message.user {
+            background: rgba(0,255,255,0.2);
+            border-left: 3px solid var(--primary-cyan);
+            margin-left: auto;
+        }
+
+        .chat-message.assistant {
+            background: rgba(255,255,255,0.1);
+            border-left: 3px solid var(--accent-orange);
+        }
+
+        .chat-message.system {
+            background: rgba(128,128,128,0.2);
+            border-left: 3px solid var(--text-gray);
+            font-style: italic;
+            text-align: center;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .chat-message .timestamp {
+            font-size: 0.7rem;
+            opacity: 0.6;
+            margin-top: 5px;
+            display: block;
+        }
+
+        /* Voice Control Panel */
+        .voice-control {
+            grid-column: 1 / -1;
+            text-align: center;
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            border: 1px solid rgba(0,255,255,0.2);
+        }
+
+        .voice-status {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            min-height: 40px;
+        }
+
+        .voice-button {
+            background: var(--primary-cyan);
+            color: var(--bg-color);
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-shadow: var(--glow-cyan);
+            box-shadow: 0 0 10px rgba(0,255,255,0.3);
+        }
+
+        .voice-button:hover {
+            background: var(--text-white);
+            color: var(--primary-cyan);
+            transform: translateY(-3px);
+            box-shadow: 0 0 15px rgba(0,255,255,0.5);
+        }
+
+        .voice-button:active {
+            transform: translateY(-1px);
+        }
+
+        .voice-button.listening {
+            background: var(--accent-red);
+            color: var(--text-white);
+            animation: pulse-red 1.5s infinite;
+            box-shadow: 0 0 20px rgba(255,0,0,0.5);
+        }
+
+        @keyframes pulse-red {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .voice-instructions {
+            font-size: 0.9rem;
+            color: var(--text-gray);
+            margin-top: 15px;
+            font-style: italic;
+        }
+
+        /* Search/Task List */
+        .search-list {
+            grid-column: 1 / 2;
+            align-self: start;
+        }
+
+        .search-list h3 {
+            font-size: 1rem;
+            color: var(--primary-cyan);
+            text-shadow: var(--glow-cyan);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .search-list ul {
+            list-style: none;
+            line-height: 1.8;
+        }
+
+        .search-list li {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: var(--text-white);
+        }
+
+        .search-list li::before {
+            content: '•';
+            color: var(--primary-cyan);
+            text-shadow: var(--glow-cyan);
+        }
+
+        /* Circular Blueprint 1 */
+        .blueprint-1 {
+            grid-column: 1 / 2;
+            align-self: end;
+            justify-self: center;
+            width: 180px;
+            height: 180px;
+            border: 1px solid var(--primary-cyan);
+            border-radius: 50%;
+            position: relative;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .blueprint-1 h3 {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.9rem;
+            color: var(--primary-cyan);
+            text-shadow: var(--glow-cyan);
+            background: var(--bg-color);
+            padding: 0 10px;
+        }
+
+        .blueprint-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 80%;
+        }
+
+        /* Simple gear representation */
+        .gear {
+            width: 100%;
+            height: 100%;
+            background: repeating-conic-gradient(
+                var(--primary-cyan) 0%,
+                var(--primary-cyan) 10%,
+                transparent 10%,
+                transparent 20%
+            );
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .gear-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40%;
+            height: 40%;
+            background: var(--bg-color);
+            border-radius: 50%;
+        }
+
+        .blueprint-text {
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--text-white);
+        }
+
+        .uptime-text {
+            color: var(--primary-cyan);
+            font-weight: 600;
+        }
+
+        .metrics-list {
+            margin-top: 8px;
+            font-size: 0.75rem;
+            line-height: 1.4;
+        }
+
+        .metrics-list div {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Circular Blueprint 2 */
+        .blueprint-2 {
+            grid-column: 2 / 3;
+            align-self: end;
+            justify-self: center;
+            width: 180px;
+            height: 180px;
+            border: 1px solid var(--accent-orange);
+            border-radius: 50%;
+            position: relative;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .blueprint-2 h3 {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.9rem;
+            color: var(--accent-orange);
+            text-shadow: var(--glow-orange);
+            background: var(--bg-color);
+            padding: 0 10px;
+        }
+
+        /* Engine-like blueprint */
+        .engine-blueprint {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 70%;
+            height: 70%;
+        }
+
+        .engine-cylinder {
+            width: 60%;
+            height: 80%;
+            background: repeating-linear-gradient(
+                45deg,
+                var(--accent-orange),
+                var(--accent-orange) 10px,
+                transparent 10px,
+                transparent 20px
+            );
+            border-radius: 10px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Full Body Wireframe */
+        .full-body-wireframe {
+            grid-column: 2 / 3;
+            align-self: start;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .wireframe-label {
+            font-size: 0.9rem;
+            color: var(--primary-cyan);
+            text-shadow: var(--glow-cyan);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .wireframe-view {
+            display: flex;
+            gap: 20px;
+        }
+
+        .view {
+            text-align: center;
+        }
+
+        .view-line {
+            width: 60px;
+            height: 2px;
+            background: var(--primary-cyan);
+            box-shadow: var(--glow-cyan);
+            margin: 5px auto;
+        }
+
+        .view-circle {
+            width: 50px;
+            height: 50px;
+            border: 2px solid var(--primary-cyan);
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .view-circle::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 8px;
+            height: 8px;
+            background: var(--primary-cyan);
+            border-radius: 50%;
+        }
+
+        .body-metrics {
+            text-align: center;
+            font-size: 0.85rem;
+        }
+
+        .body-metrics div {
+            margin: 4px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .metric-label {
+            color: var(--text-gray);
+        }
+
+        .metric-value {
+            color: var(--text-white);
+            font-weight: 600;
+        }
+
+        /* Disk Usage Bar */
+        .disk-usage {
+            grid-column: 1 / -1;
+            align-self: end;
+            justify-self: center;
+            width: 100%;
+            max-width: 400px;
+            margin-top: 20px;
+        }
+
+        .disk-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            color: var(--text-white);
+            margin-bottom: 8px;
+        }
+
+        .disk-bar {
+            height: 12px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .disk-fill {
+            height: 100%;
+            background: linear-gradient(to right, var(--primary-cyan), var(--text-white));
+            width: 47.4%; /* Dynamic */
+            position: relative;
+        }
+
+        .disk-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: disk-scan 1.5s linear infinite;
+        }
+
+        @keyframes disk-scan {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        /* Right Side Panel */
+        .right-panel {
+            width: 280px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding-top: 20px;
+        }
+
+        /* Weather Section */
+        .weather-section {
+            text-align: right;
+        }
+
+        .weather-label {
+            font-size: 0.9rem;
+            color: var(--primary-cyan);
+            text-shadow: var(--glow-cyan);
+            margin-bottom: 8px;
+        }
+
+        .weather-data {
+            font-size: 0.85rem;
+            line-height: 1.6;
+            text-align: left;
+        }
+
+        .weather-data div {
+            margin: 4px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .weather-label-text {
+            color: var(--text-gray);
+        }
+
+        .weather-value {
+            color: var(--text-white);
+        }
+
+        .forecast-section {
+            margin-top: 15px;
+            text-align: left;
+        }
+
+        .forecast-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 6px 0;
+            font-size: 0.8rem;
+        }
+
+        .forecast-day {
+            color: var(--primary-cyan);
+        }
+
+        .forecast-temp {
+            color: var(--text-white);
+            font-weight: 600;
+        }
+
+        /* Circular Gauge (Telemetry) */
+        .telemetry-gauge {
+            width: 180px;
+            height: 180px;
+            margin: 0 auto;
+            position: relative;
+            border: 2px solid var(--accent-orange);
+            border-radius: 50%;
+            background: conic-gradient(
+                var(--accent-orange) 0%,
+                var(--accent-orange) 65%,
+                transparent 65%,
+                transparent 100%
+            );
+        }
+
+        .gauge-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60%;
+            height: 60%;
+            background: var(--bg-color);
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gauge-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-white);
+        }
+
+        .gauge-label {
+            font-size: 0.8rem;
+            color: var(--text-gray);
+        }
+
+        .nav-menu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 80%;
+            background: rgba(0,0,0,0.4);
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .nav-item {
+            color: var(--text-white);
+            font-size: 0.75rem;
+            text-align: center;
+            padding: 4px 8px;
+            border-radius: 3px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-item:hover {
+            background: rgba(0,255,255,0.2);
+            color: var(--primary-cyan);
+            text-shadow: var(--glow-cyan);
+        }
+
+        /* System Metrics (Below Gauge) */
+        .system-metrics {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 15px;
+        }
+
+        .metric-box {
+            text-align: center;
+        }
+
+        .metric-time {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--primary-cyan);
+            text-shadow: var(--glow-cyan);
+        }
+
+        .metric-list {
+            text-align: left;
+            font-size: 0.8rem;
+            margin-top: 8px;
+        }
+
+        .metric-list div {
+            margin: 3px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Sub-Systems (Center-Right in Right Panel) */
+        .sub-systems {
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        .radar-map {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 10px auto;
+            border: 1px solid var(--primary-cyan);
+            border-radius: 50%;
+            position: relative;
+            background: rgba(0,0,0,0.3);
+        }
+
+        .radar-sweep {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 2px;
+            height: 50%;
+            background: var(--primary-cyan);
+            transform-origin: bottom center;
+            transform: rotate(45deg);
+            animation: radar-sweep 3s linear infinite;
+        }
+
+        @keyframes radar-sweep {
+            to { transform: rotate(405deg); }
+        }
+
+        .sub-system-data {
+            font-size: 0.8rem;
+            line-height: 1.5;
+        }
+
+        .sub-system-data div {
+            margin: 4px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Bottom Panel */
+        .bottom-panel {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid rgba(0,255,255,0.1);
+        }
+
+        .status-text {
+            font-size: 0.95rem;
+            color: var(--primary-cyan);
+            text-shadow: var(--glow-cyan);
+            flex: 1;
+            text-align: left;
+        }
+
+        .uptime-text-bottom {
+            font-size: 0.8rem;
+            color: var(--text-gray);
+            margin-top: 4px;
+        }
+
+        .time-large {
+            font-size: 2.2rem;
+            font-weight: 600;
+            color: var(--primary-cyan);
+            text-shadow: var(--glow-cyan);
+            flex: 1;
+            text-align: center;
+        }
+
+        .time-small {
+            font-size: 0.9rem;
+            color: var(--text-white);
+            margin-top: 4px;
+        }
+
+        .media-player {
+            flex: 1;
+            text-align: right;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .album-art {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-cyan);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: var(--bg-color);
+            text-shadow: var(--glow-cyan);
+        }
+
+        .media-info {
+            text-align: right;
+        }
+
+        .media-title {
+            font-weight: 600;
+            color: var(--text-white);
+        }
+
+        .media-artist {
+            font-size: 0.8rem;
+            color: var(--text-gray);
+        }
+
+        .media-controls {
+            display: flex;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .control-btn {
+            width: 24px;
+            height: 24px;
+            background: var(--primary-cyan);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--bg-color);
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .control-btn:hover {
+            background: var(--text-white);
+            color: var(--primary-cyan);
+            text-shadow: var(--glow-cyan);
+            transform: scale(1.1);
+        }
+
+        .media-size {
+            font-size: 0.8rem;
+            color: var(--text-gray);
+            margin-left: 10px;
+        }
+
+        /* Hover effects for all buttons */
+        button:hover,
+        .control-btn:hover,
+        .sys-button:hover,
+        .nav-item:hover {
+            transform: translateY(-2px);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 1200px) {
+            .main-content {
+                flex-wrap: wrap;
+            }
+            
+            .left-panel,
+            .right-panel {
+                width: 100%;
+            }
+            
+            .center-field {
+                grid-template-columns: 1fr;
+            }
+            
+            .chat-interface {
+                height: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="jarvis-container">
+        <!-- Header / Top-Level Status Bar -->
+        <header class="status-bar">
+            <div class="left-section">
+                <div class="stark-text">STARK</div>
+                <div class="industries-text">INDUSTRIES</div>
+                <div class="jarvis-text">J.A.R.V.I.S.</div>
+                <div class="ai-system-text">A.I. SYSTEM<br>ACTIVE</div>
+                <div class="id-profile">
+                    <div class="user-icon">T</div>
+                    <div class="id-text">T. STARK / ID: TS-001</div>
+                </div>
+            </div>
+            
+            <div class="center-section">
+                <div class="ram-label">RAM USAGE</div>
+                <div class="ram-value" id="ram-value">63%</div>
+                <div class="ram-graph">
+                    <div class="ram-graph-fill" id="ram-fill"></div>
+                </div>
+            </div>
+            
+            <div class="right-section">
+                <div class="system-buttons">
+                    <button class="sys-button">SHUTDOWN</button>
+                    <button class="sys-button">RESTART</button>
+                    <button class="sys-button">LOG OFF</button>
+                </div>
+                <div class="date-time-section">
+                    <div class="date-large" id="date-large">11 AUGUST</div>
+                    <div class="day-text">SATURDAY</div>
+                    <div class="icon-grid">
+                        <div class="icon-item">Chrome</div>
+                        <div class="icon-item">PS</div>
+                        <div class="icon-item">Recycle</div>
+                        <div class="icon-item">Skype</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Left Side Panel -->
+            <aside class="left-panel">
+                <div class="control-panel-label">CONTROL PANELS</div>
+                <div class="button-group">
+                    <button class="control-button active">CHROME</button>
+                    <button class="control-button">CONTROL PANEL</button>
+                    <button class="control-button">STEAM</button>
+                    <button class="control-button">WHATSAPP</button>
+                    <button class="control-button">uTORRENT</button>
+                    <button class="control-button">SKYPE</button>
+                </div>
+                <div class="vertical-gauge">
+                    <div class="gauge-fill" id="vertical-fill" style="height: 75%;"></div>
+                </div>
+            </aside>
+
+            <!-- Center Field -->
+            <section class="center-field">
+                <!-- Central Asset -->
+                <div class="central-asset">
+                    <div class="wireframe-helmet">
+                        <div class="eyes">
+                            <div class="eye"></div>
+                            <div class="eye"></div>
+                        </div>
+                        <div class="arc-reactor"></div>
+                    </div>
+                    <div class="helmet-dialogue">
+                        <div class="jarvis-label">J.A.R.V.I.S.</div>
+                        <div class="user-command">What Can I Search For You, Sir?</div>
+                    </div>
+                </div>
+
+                <!-- Search/Task List -->
+                <div class="search-list">
+                    <h3>SEARCH & TASKS</h3>
+                    <ul>
+                        <li>GOOGLE</li>
+                        <li>GMAIL</li>
+                        <li>FACEBOOK</li>
+                        <li>YOUTUBE</li>
+                        <li>IMDB</li>
+                        <li>KAT</li>
+                        <li>WEB</li>
+                        <li>9GAG</li>
+                        <li>PIRATE BAY</li>
+                        <li>STUMBLEUPON</li>
+                        <li>YAHOO</li>
+                        <li>PUPIL PAD</li>
+                        <li>WIKIPEDIA</li>
+                    </ul>
+                </div>
+
+                <!-- Circular Blueprint 1 -->
+                <div class="blueprint-1">
+                    <h3>SERVO-GEAR BLUEPRINT</h3>
+                    <div class="blueprint-content">
+                        <div class="gear"></div>
+                        <div class="gear-center"></div>
+                    </div>
+                    <div class="blueprint-text">
+                        <div class="uptime-text">UPTIME: 0d 20h 54m</div>
+                        <div class="metrics-list">
+                            <div><span class="metric-label">CPU USAGE:</span> <span class="metric-value">33%</span></div>
+                            <div><span class="metric-label">D:</span> <span class="metric-value">3.39 GB / 97.6 GB</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Circular Blueprint 2 -->
+                <div class="blueprint-2">
+                    <h3>ENGINE ASSEMBLY</h3>
+                    <div class="blueprint-content">
+                        <div class="engine-blueprint">
+                            <div class="engine-cylinder"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Full Body Wireframe -->
+                <div class="full-body-wireframe">
+                    <div class="wireframe-label">FULL BODY WIREFRAME</div>
+                    <div class="wireframe-view">
+                        <div class="view">
+                            <div class="view-label">FRONT</div>
+                            <div class="view-line"></div>
+                            <div class="view-circle"></div>
+                        </div>
+                        <div class="view">
+                            <div class="view-label">BACK</div>
+                            <div class="view-line"></div>
+                            <div class="view-circle"></div>
+                        </div>
+                        <div class="view">
+                            <div class="view-label">PROFILE</div>
+                            <div class="view-line"></div>
+                            <div class="view-circle"></div>
+                        </div>
+                    </div>
+                    <div class="body-metrics">
+                        <div><span class="metric-label">SYSTEM</span></div>
+                        <div><span class="metric-label">CPU USAGE:</span> <span class="metric-value" id="cpu-usage">31%</span></div>
+                        <div><span class="metric-label">RAM USAGE:</span> <span class="metric-value" id="ram-usage-body">63%</span></div>
+                        <div><span class="metric-label">SWAP USAGE:</span> <span class="metric-value">61%</span></div>
+                    </div>
+                </div>
+
+                <!-- Disk Usage Bar -->
+                <div class="disk-usage">
+                    <div class="disk-label">
+                        <span>DISK C:\</span>
+                        <span id="disk-usage-value">47.4 GB / 97.7 GB</span>
+                    </div>
+                    <div class="disk-bar">
+                        <div class="disk-fill" id="disk-fill"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Side Panel -->
+            <aside class="right-panel">
+                <!-- Weather Section -->
+                <div class="weather-section">
+                    <div class="weather-label">WEATHER TELEMETRY</div>
+                    <div class="weather-data">
+                        <div><span class="weather-label-text">Humidity:</span> <span class="weather-value" id="humidity">65%</span></div>
+                        <div><span class="weather-label-text">Feels Like:</span> <span class="weather-value" id="feels-like">28°C</span></div>
+                        <div><span class="weather-label-text">Precipitation:</span> <span class="weather-value" id="precipitation">10%</span></div>
+                        <div><span class="weather-label-text">Wind:</span> <span class="weather-value" id="wind">12 mph</span></div>
+                        <div><span class="weather-label-text">Pressure:</span> <span class="weather-value" id="pressure">1.013 bar</span></div>
+                        <div><span class="weather-label-text">Sunrise:</span> <span class="weather-value" id="sunrise">06:12</span></div>
+                        <div><span class="weather-label-text">Sunset:</span> <span class="weather-value" id="sunset">19:45</span></div>
+                    </div>
+                    <div class="forecast-section">
+                        <div class="forecast-item"><span class="forecast-day">Today</span><span class="forecast-temp">30°C Mostly Cloudy</span></div>
+                        <div class="forecast-item"><span class="forecast-day">Tomorrow Aug 12</span><span class="forecast-temp">30°/27°C Showers</span></div>
+                        <div class="forecast-item"><span class="forecast-day">Monday Aug 13</span><span class="forecast-temp">30°/27°C Rain Showers</span></div>
+                    </div>
+                </div>
+
+                <!-- Circular Gauge -->
+                <div class="telemetry-gauge" id="telemetry-gauge">
+                    <div class="gauge-center">
+                        <div class="gauge-value" id="gauge-value">65%</div>
+                        <div class="gauge-label">NETWORK USAGE</div>
+                    </div>
+                    <div class="gauge-sweep" style="position: absolute; top: 50%; left: 50%; width: 2px; height: 50%; background: var(--primary-cyan); transform-origin: bottom center; transform: rotate(45deg);"></div>
+                    <div class="nav-menu">
+                        <div class="nav-item">Gmail</div>
+                        <div class="nav-item">XDA Forums</div>
+                        <div class="nav-item">Sammobile</div>
+                        <div class="nav-item">Twitter</div>
+                        <div class="nav-item">Facebook</div>
+                    </div>
+                </div>
+
+                <!-- System Metrics -->
+                <div class="system-metrics">
+                    <div class="metric-box">
+                        <div class="metric-time" id="time-large">11:33</div>
+                        <div class="metric-label" style="font-size: 0.8rem; color: var(--text-gray);">11:33</div>
+                    </div>
+                    <div class="metric-box metric-list">
+                        <div><span class="metric-label">Downloads</span><span class="metric-value">12.4 GB</span></div>
+                        <div><span class="metric-label">Dropbox</span><span class="metric-value">2.1 GB</span></div>
+                        <div><span class="metric-label">Music</span><span class="metric-value">8.7 GB</span></div>
+                        <div><span class="metric-label">Rainmeter</span><span class="metric-value">150 MB</span></div>
+                        <div><span class="metric-label">Document</span><span class="metric-value">4.3 GB</span></div>
+                        <div><span class="metric-label">Pictures</span><span class="metric-value">15.2 GB</span></div>
+                        <div><span class="metric-label">Videos</span><span class="metric-value">28.9 GB</span></div>
+                    </div>
+                </div>
+
+                <!-- Sub-Systems -->
+                <div class="sub-systems">
+                    <div class="radar-map">
+                        <div class="radar-sweep"></div>
+                    </div>
+                    <div class="sub-system-data">
+                        <div><span class="weather-label-text">Temperature:</span> <span class="weather-value" id="temp-c">54°C</span></div>
+                        <div><span class="weather-label-text">Location:</span> <span class="weather-value" id="location">Surat</span></div>
+                        <div><span class="weather-label-text">IP Address:</span> <span class="weather-value" id="ip-address">185.175.94.143</span></div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- Bottom Panel -->
+        <footer class="bottom-panel">
+            <div class="status-text">
+                Currently power level is at <span id="power-level">100</span> percent and holding steady.
+            </div>
+            <div class="uptime-text-bottom">
+                AM Days Left: 142, Weeks Left: 20, Months Left: 4, In Year: 2018
+            </div>
+            <div class="time-large" id="time-clock">11:33</div>
+            <div class="time-small">11:33</div>
+            <div class="media-player">
+                <div class="album-art">▶</div>
+                <div class="media-info">
+                    <div class="media-title">Stark Theme</div>
+                    <div class="media-artist">Hans Zimmer</div>
+                </div>
+                <div class="media-controls">
+                    <div class="control-btn">⏮</div>
+                    <div class="control-btn">⏸</div>
+                    <div class="control-btn">⏭</div>
+                </div>
+                <div class="media-size">0.4 MB</div>
+            </div>
+        </footer>
+
+        <!-- Voice Control Overlay -->
+        <div class="voice-control" id="voice-control">
+            <div class="voice-status" id="voice-status">Say "Hey Kutti" to activate</div>
+            <button class="voice-button" id="voice-button" onclick="toggleListening()">
+                <i class="microphone-icon">🎤</i> Start Listening
+            </button>
+            <div class="voice-instructions" id="voice-instructions">
+                Speak clearly after clicking the button. Say "Hey Kutti" followed by your command.
+            </div>
+        </div>
+
+        <!-- Chat Interface -->
+        <div class="chat-interface" id="chat-interface">
+            <div class="chat-message system">
+                <span>J.A.R.V.I.S. Voice Assistant initialized</span>
+                <span class="timestamp" id="chat-timestamp"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Update time every second
+        function updateTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+            document.getElementById('time-clock').textContent = timeString;
+            document.getElementById('time-large').textContent = timeString;
+            
+            // Update date
+            const dateOptions = { day: '2-digit', month: 'long', weekday: 'long' };
+            const dateString = now.toLocaleDateString('en-US', dateOptions);
+            const [day, month, weekday] = dateString.split(' ');
+            document.getElementById('date-large').textContent = `${day.toUpperCase()} ${month.toUpperCase()}`;
+            document.querySelector('.day-text').textContent = weekday.toUpperCase();
+        }
+        
+        // Update some dynamic values periodically (simulated)
+        function updateDynamicValues() {
+            // Simulate changing values
+            const ramUsage = Math.floor(Math.random() * 40) + 40; // 40-80%
+            document.getElementById('ram-value').textContent = `${ramUsage}%`;
+            document.getElementById('ram-fill').style.width = `${ramUsage}%`;
+            document.getElementById('ram-usage-body').textContent = `${ramUsage}%`;
+            
+            const cpuUsage = Math.floor(Math.random() * 30) + 20; // 20-50%
+            document.getElementById('cpu-usage').textContent = `${cpuUsage}%`;
+            
+            const diskUsage = Math.floor(Math.random() * 30) + 30; // 30-60%
+            document.getElementById('disk-usage-value').textContent = `${diskUsage}.0 GB / 97.7 GB`;
+            document.getElementById('disk-fill').style.width = `${diskUsage}%`;
+            
+            const networkUsage = Math.floor(Math.random() * 50) + 20; // 20-70%
+            document.getElementById('gauge-value').textContent = `${networkUsage}%`;
+            
+            // Update power level slightly
+            const powerLevel = Math.floor(Math.random() * 5) + 95; // 95-100%
+            document.getElementById('power-level').textContent = powerLevel;
+            
+            // Update weather values slightly
+            document.getElementById('humidity').textContent = `${Math.floor(Math.random() * 30) + 50}%`;
+            document.getElementById('temp-c').textContent = `${Math.floor(Math.random() * 10) + 50}°C`;
+        }
+        
+        // Add chat message
+        function addChatMessage(sender, message) {
+            const chatInterface = document.getElementById('chat-interface');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${sender.toLowerCase()}`;
+            
+            const timestamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            
+            messageDiv.innerHTML = `
+                <span>${message}</span>
+                <span class="timestamp">${timestamp}</span>
+            `;
+            
+            chatInterface.appendChild(messageDiv);
+            chatInterface.scrollTop = chatInterface.scrollHeight;
+        }
+        
+        // Process command via AJAX
+        async function processCommand(command) {
+            try {
+                const response = await fetch('/process_command', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ command: command })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    addChatMessage('System', `Error: ${data.error}`);
+                } else {
+                    addChatMessage('You', data.command);
+                    addChatMessage('Assistant', data.response);
+                    
+                    // Update dynamic values if present in response
+                    if data.response.includes('%') || data.response.includes('GB') || data.response.includes('°C')) {
+                        // Extract and update values if needed
+                    }
+                }
+            } catch (error) {
+                addChatMessage('System', `Connection error: ${error.message}`);
+            }
+        }
+        
+        // Voice recognition using Web Speech API
+        let recognition = null;
+        let isListening = false;
+        
+        function initSpeechRecognition() {
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
+                
+                recognition.onresult = function(event) {
+                    const transcript = event.results[0][0].transcript.trim().toLowerCase();
+                    console.log('Recognized:', transcript);
+                    
+                    // Check for wake word
+                    if (transcript.includes('hey kutti')) {
+                        const command = transcript.replace('hey kutti', '', 1).trim();
+                        if (command) {
+                            processCommand(command);
+                        } else {
+                            // Just wake word, greet
+                            addChatMessage('Assistant', 'Hello Mr. Vishnu. How can I assist you?');
+                        }
+                    } else {
+                        // Process as direct command
+                        processCommand(transcript);
+                    }
+                };
+                
+                recognition.onerror = function(event) {
+                    console.error('Speech recognition error:', event.error);
+                    addChatMessage('System', `Speech recognition error: ${event.error}`);
+                };
+                
+                recognition.onend = function() {
+                    if (isListening) {
+                        // Auto-restart if still listening
+                        setTimeout(startListening, 100);
+                    }
+                    updateVoiceButton(false);
+                };
+            } else {
+                addChatMessage('System', 'Speech recognition not supported in this browser');
+            }
+        }
+        
+        function startListening() {
+            if (!recognition) {
+                initSpeechRecognition();
+            }
+            
+            if (recognition && !isListening) {
+                try {
+                    recognition.start();
+                    isListening = true;
+                    updateVoiceButton(true);
+                    document.getElementById('voice-status').textContent = 'Listening...';
+                    document.getElementById('voice-instructions').textContent = 'Speak now...';
+                } catch (error) {
+                    addChatMessage('System', `Failed to start listening: ${error.message}`);
+                }
+            }
+        }
+        
+        function stopListening() {
+            if (recognition && isListening) {
+                try {
+                    recognition.stop();
+                } catch (error) {
+                    // Ignore errors on stop
+                }
+                isListening = false;
+                updateVoiceButton(false);
+                document.getElementById('voice-status').textContent = 'Say "Hey Kutti" to activate';
+                document.getElementById('voice-instructions').textContent = 'Speak clearly after clicking the button. Say "Hey Kutti" followed by your command.';
+            }
+        }
+        
+        function toggleListening() {
+            if (isListening) {
+                stopListening();
+            } else {
+                startListening();
+            }
+        }
+        
+        function updateVoiceButton(listening) {
+            const button = document.getElementById('voice-button');
+            if (listening) {
+                button.classList.add('listening');
+                button.innerHTML = '<i class="microphone-icon">🎤</i> Listening...';
+            } else {
+                button.classList.remove('listening');
+                button.innerHTML = '<i class="microphone-icon">🎤</i> Start Listening';
+            }
+        }
+        
+        // Initialize
+        updateTime();
+        updateDynamicValues();
+        initSpeechRecognition();
+        
+        // Set intervals
+        setInterval(updateTime, 1000);
+        setInterval(updateDynamicValues, 5000);
+        
+        // Add hover effects to buttons
+        document.querySelectorAll('.sys-button, .control-button, .nav-item, .control-btn').forEach(button => {
+            button.addEventListener('mouseenter', () => {
+                button.style.transform = 'translateY(-2px)';
+            });
+            button.addEventListener('mouseleave', () => {
+                button.style.transform = 'translateY(0)';
+            });
+        });
+        
+        // Add welcome message after a short delay
+        setTimeout(() => {
+            addChatMessage('System', 'J.A.R.V.I.S. Voice Assistant is ready. Say "Hey Kutti" to begin.');
+        }, 1000);
+    </script>
+</body>
+</html>
