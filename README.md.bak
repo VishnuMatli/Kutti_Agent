@@ -12,7 +12,7 @@ A modular, cross‑platform personal assistant that responds to the wake word **
 | **LLM integration** | ✅ (Groq API) | Sends user queries to a large language model (default `groq/compound`) and speaks the answer. |
 | **Command handling** | ✅ | Recognizes keywords: `calculator`, `open browser`, `open text editor`, `open terminal`, `send email`, `remind me to`, `time`, `date`, `exit`. |
 | **Reminders** | ✅ | Set time‑based reminders with natural language: “remind me to <task> at <HH:MM>”. Stored in `reminders.json`. |
-| **Email sending** | ✅ | Prompts for To, Subject, Body (with env defaults), rewrites Body via LLM for clarity, shows preview, then sends upon confirmation.
+| **Email sending** | ✅ | Uses Gmail SMTP with App Password; can read credentials from `.env` or prompt interactively. |
 | **Cross‑platform app launch** | ✅ | Works on Windows, macOS, and Linux (opens default apps). |
 | **Extensible design** | 🛠️ | Voice, gesture, face, eye‑tracking, and GUI modules can be plugged in. |
 | **Text‑based operation** | ✅ | Fully functional without audio dependencies (useful for development). |
