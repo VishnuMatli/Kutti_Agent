@@ -1,1 +1,0 @@
-| **Email sending** | ✅ | Prompts for To, Subject, Body (with env defaults), rewrites Body via LLM for clarity, shows preview, then sends upon confirmation.

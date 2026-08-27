@@ -62,32 +62,8 @@ class Assistant:
         self.last_reminder_check = 0
         
         # Voice setup
-        if self.use_voice and VOSK_AVAILABLE:
-            print("Loading Vosk model for offline speech recognition...")
-            model_path = os.path.join(os.path.dirname(__file__), "vosk_model")
-            if not os.path.exists(model_path):
-                print(f"Vosk model not found at {model_path}. Please download a model.")
-                self.use_voice = False
-            else:
-                self.vosk_model = Model(model_path)
-                # Get default sample rate from first input device
-                self.audio_interface = pyaudio.PyAudio()
-                info = self.audio_interface.get_device_info_by_index(0)
-                self.sample_rate = int(info['defaultSampleRate'])
-                print(f"Using sample rate: {self.sample_rate} Hz")
-                self.vosk_recognizer = KaldiRecognizer(self.vosk_model, self.sample_rate)
-                self.audio_stream = self.audio_interface.open(
-                    format=pyaudio.paInt16,
-                    channels=1,
-                    rate=self.sample_rate,
-                    input=True,
-                    frames_per_buffer=8000,
-                    input_device_index=0   # use first mic
-                )
-                self.audio_stream.start_stream()
-                print("Voice capabilities enabled (Vosk offline)")
-        elif self.use_voice and not VOSK_AVAILABLE:
-            print("Vosk not available, falling back to online SpeechRecognition (may need audio utilities)")
+        if self.use_voice:
+            # First, try online SpeechRecognition
             try:
                 import speech_recognition as sr
                 import pyttsx3
@@ -95,11 +71,39 @@ class Assistant:
                 self.microphone = sr.Microphone()
                 self.tts_engine = pyttsx3.init()
                 self.tts_engine.setProperty('rate', 150)
+                self.voice_method = 'online'
                 print("Voice capabilities enabled (online)")
             except ImportError as e:
-                print(f"Voice dependencies not available: {e}")
-                print("Falling back to text mode")
-                self.use_voice = False
+                print(f"Online SpeechRecognition not available: {e}")
+                # Fall back to Vosk if available
+                if VOSK_AVAILABLE:
+                    print("Loading Vosk model for offline speech recognition...")
+                    model_path = os.path.join(os.path.dirname(__file__), "vosk_model")
+                    if not os.path.exists(model_path):
+                        print(f"Vosk model not found at {model_path}. Please download a model.")
+                        self.use_voice = False
+                    else:
+                        self.vosk_model = Model(model_path)
+                        # Get default sample rate from first input device
+                        self.audio_interface = pyaudio.PyAudio()
+                        info = self.audio_interface.get_device_info_by_index(0)
+                        self.sample_rate = int(info['defaultSampleRate'])
+                        print(f"Using sample rate: {self.sample_rate} Hz")
+                        self.vosk_recognizer = KaldiRecognizer(self.vosk_model, self.sample_rate)
+                        self.audio_stream = self.audio_interface.open(
+                            format=pyaudio.paInt16,
+                            channels=1,
+                            rate=self.sample_rate,
+                            input=True,
+                            frames_per_buffer=8000,
+                            input_device_index=0   # use first mic
+                        )
+                        self.audio_stream.start_stream()
+                        self.voice_method = 'vosk'
+                        print("Voice capabilities enabled (Vosk offline)")
+                else:
+                    print("Falling back to text mode")
+                    self.use_voice = False
         else:
             print("Running in text mode")
     
@@ -138,7 +142,7 @@ class Assistant:
     def listen(self):
         """Get input via voice or text"""
         if self.use_voice:
-            if VOSK_AVAILABLE and hasattr(self, 'vosk_recognizer'):
+            if self.voice_method == 'vosk':
                 # Use Vosk
                 print("Listening...")
                 try:
@@ -151,7 +155,7 @@ class Assistant:
                 except Exception as e:
                     print(f"Voice error (Vosk): {e}")
                     return None
-            else:
+            else:  # online
                 # Fallback to online SpeechRecognition
                 try:
                     import speech_recognition as sr
@@ -536,6 +540,6 @@ class Assistant:
             print("\nAssistant stopped.")
 
 if __name__ == "__main__":
-    # Start in text mode by default - change to True to test voice when dependencies work
-    assistant = Assistant(use_voice=False)
+    # Start in voice mode by default - change to False to use text mode
+    assistant = Assistant(use_voice=True)
     assistant.run()
