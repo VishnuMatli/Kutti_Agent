@@ -62,8 +62,32 @@ class Assistant:
         self.last_reminder_check = 0
         
         # Voice setup
-        if self.use_voice:
-            # First, try online SpeechRecognition
+        if self.use_voice and VOSK_AVAILABLE:
+            print("Loading Vosk model for offline speech recognition...")
+            model_path = os.path.join(os.path.dirname(__file__), "vosk_model")
+            if not os.path.exists(model_path):
+                print(f"Vosk model not found at {model_path}. Please download a model.")
+                self.use_voice = False
+            else:
+                self.vosk_model = Model(model_path)
+                # Get default sample rate from first input device
+                self.audio_interface = pyaudio.PyAudio()
+                info = self.audio_interface.get_device_info_by_index(0)
+                self.sample_rate = int(info['defaultSampleRate'])
+                print(f"Using sample rate: {self.sample_rate} Hz")
+                self.vosk_recognizer = KaldiRecognizer(self.vosk_model, self.sample_rate)
+                self.audio_stream = self.audio_interface.open(
+                    format=pyaudio.paInt16,
+                    channels=1,
+                    rate=self.sample_rate,
+                    input=True,
+                    frames_per_buffer=8000,
+                    input_device_index=0   # use first mic
+                )
+                self.audio_stream.start_stream()
+                print("Voice capabilities enabled (Vosk offline)")
+        elif self.use_voice and not VOSK_AVAILABLE:
+            print("Vosk not available, falling back to online SpeechRecognition (may need audio utilities)")
             try:
                 import speech_recognition as sr
                 import pyttsx3
@@ -71,39 +95,11 @@ class Assistant:
                 self.microphone = sr.Microphone()
                 self.tts_engine = pyttsx3.init()
                 self.tts_engine.setProperty('rate', 150)
-                self.voice_method = 'online'
                 print("Voice capabilities enabled (online)")
             except ImportError as e:
-                print(f"Online SpeechRecognition not available: {e}")
-                # Fall back to Vosk if available
-                if VOSK_AVAILABLE:
-                    print("Loading Vosk model for offline speech recognition...")
-                    model_path = os.path.join(os.path.dirname(__file__), "vosk_model")
-                    if not os.path.exists(model_path):
-                        print(f"Vosk model not found at {model_path}. Please download a model.")
-                        self.use_voice = False
-                    else:
-                        self.vosk_model = Model(model_path)
-                        # Get default sample rate from first input device
-                        self.audio_interface = pyaudio.PyAudio()
-                        info = self.audio_interface.get_device_info_by_index(0)
-                        self.sample_rate = int(info['defaultSampleRate'])
-                        print(f"Using sample rate: {self.sample_rate} Hz")
-                        self.vosk_recognizer = KaldiRecognizer(self.vosk_model, self.sample_rate)
-                        self.audio_stream = self.audio_interface.open(
-                            format=pyaudio.paInt16,
-                            channels=1,
-                            rate=self.sample_rate,
-                            input=True,
-                            frames_per_buffer=8000,
-                            input_device_index=0   # use first mic
-                        )
-                        self.audio_stream.start_stream()
-                        self.voice_method = 'vosk'
-                        print("Voice capabilities enabled (Vosk offline)")
-                else:
-                    print("Falling back to text mode")
-                    self.use_voice = False
+                print(f"Voice dependencies not available: {e}")
+                print("Falling back to text mode")
+                self.use_voice = False
         else:
             print("Running in text mode")
     
@@ -142,7 +138,7 @@ class Assistant:
     def listen(self):
         """Get input via voice or text"""
         if self.use_voice:
-            if self.voice_method == 'vosk':
+            if VOSK_AVAILABLE and hasattr(self, 'vosk_recognizer'):
                 # Use Vosk
                 print("Listening...")
                 try:
@@ -155,7 +151,7 @@ class Assistant:
                 except Exception as e:
                     print(f"Voice error (Vosk): {e}")
                     return None
-            else:  # online
+            else:
                 # Fallback to online SpeechRecognition
                 try:
                     import speech_recognition as sr
@@ -412,85 +408,43 @@ class Assistant:
         current_date = time.strftime("%A, %B %d, %Y")
         self.speak(f"Today is {current_date}")
     
-    def _get_response(self, prompt):
-        """Get a response from user, using voice if enabled, else text input."""
-        if self.use_voice:
-            self.speak(prompt)
-            # Try up to 2 times to get non-empty response
-            for _ in range(2):
-                resp = self.listen()
-                if resp and resp.strip():
-                    return resp.strip()
-                self.speak("I didn't catch that. Please repeat.")
-            # If still empty, return empty string
-            return ""
-        else:
-            try:
-                return input(prompt).strip()
-            except EOFError:
-                return ""
     def send_email(self):
         """Send a simple email (requires configuration)"""
+        # Determine if we are in interactive mode (terminal)
+        interactive = sys.stdin.isatty()
+        
         self.speak("I'll help you send an email.")
         
-        # Get details
-        to = self._get_response(f"To: [{self.email_to or ''}]: ")
-        if not to:
+        # Get details: if interactive, prompt; else use environment variables
+        if interactive:
+            to = input(f"To: ") or self.email_to or ""
+            if not to:
+                to = input("To: ")
+            subject = input(f"Subject: ") or self.email_subject or ""
+            if not subject:
+                subject = input("Subject: ")
+            body = input(f"Body: ") or self.email_body or ""
+            if not body:
+                body = input("Body: ")
+            sender_email = self.email_user or input("Your email address: ")
+            password = self.email_app_password or input("Your email app password: ")
+        else:
+            # Non-interactive: rely on environment variables
             to = self.email_to
-        if not to:
-            to = self._get_response("To: ")
-        
-        subject = self._get_response(f"Subject: [{self.email_subject or ''}]: ")
-        if not subject:
             subject = self.email_subject
-        if not subject:
-            subject = self._get_response("Subject: ")
-        
-        raw_body = self._get_response(f"Body: [{self.email_body or ''}]: ")
-        if not raw_body:
-            raw_body = self.email_body
-        if not raw_body:
-            raw_body = self._get_response("Body: ")
-        
-        # Rewrite body using LLM
-        self.speak("Let me think about how to phrase your message...")
-        rewrite_prompt = f"Please rewrite the following email body to be clear, polite, and professional, preserving the original meaning:\n\n{raw_body}"
-        rewritten_body = self.query_llm(rewrite_prompt)
-        # If LLM fails, fallback to raw body
-        if rewritten_body.startswith("Sorry, I encountered an error") or not rewritten_body:
-            self.speak("I couldn't rewrite the body; using your original text.")
-            rewritten_body = raw_body
-    
-        # Show preview (print and optionally speak)
-        print("\n--- Email Preview ---")
-        print(f"From: {self.email_user}")
-        print(f"To: {to}")
-        print(f"Subject: {subject}")
-        print("Body:")
-        print(rewritten_body)
-        print("---------------------\n")
-        if self.use_voice:
-            preview_speech = f"From: {self.email_user}. To: {to}. Subject: {subject}. Body: {rewritten_body}"
-            self.speak(preview_speech)
-        
-        # Ask for confirmation
-        confirm = self._get_response("Send this email? (yes/no): ").lower()
-        if confirm not in ("yes", "y"):
-            self.speak("Email sending cancelled.")
-            return
-        
-        # Use environment credentials if available, otherwise prompt
-        sender_email = self._get_response(f"Your email address: [{self.email_user or ''}]: ")
-        if not sender_email:
+            body = self.email_body
             sender_email = self.email_user
-        if not sender_email:
-            sender_email = self._get_response("Your email address: ")
-        
-        password = self._get_response(f"Your email app password: [{self.email_app_password or ''}]: ")
-        if not password:
             password = self.email_app_password
-        if not password:
-            password = self._get_response("Your email app password: ")
+            # If any missing, we cannot send
+            if not all([to, subject, body, sender_email, password]):
+                missing = []
+                if not to: missing.append("To (EMAIL_TO)")
+                if not subject: missing.append("Subject (EMAIL_SUBJECT)")
+                if not body: missing.append("Body (EMAIL_BODY)")
+                if not sender_email: missing.append("From (EMAIL_USER)")
+                if not password: missing.append("Password (EMAIL_APP_PASSWORD)")
+                self.speak(f"Email sending skipped: missing {', '.join(missing)}. Set these in .env or run in interactive mode.")
+                return
         
         try:
             # Create message
@@ -499,7 +453,7 @@ class Assistant:
             msg['To'] = to
             msg['Subject'] = subject
             
-            msg.attach(MIMEText(rewritten_body, 'plain'))
+            msg.attach(MIMEText(body, 'plain'))
             
             # Send email
             server = smtplib.SMTP('smtp.gmail.com', 587)
@@ -513,6 +467,7 @@ class Assistant:
         except Exception as e:
             print(f"Email error: {e}")
             self.speak("Sorry, I couldn't send the email. Please check your email configuration.")
+
     def run(self):
         """Main loop for the assistant"""
         self.speak("Assistant initialized. Waiting for wake word 'Hey Kutti'...")
@@ -540,6 +495,6 @@ class Assistant:
             print("\nAssistant stopped.")
 
 if __name__ == "__main__":
-    # Start in voice mode by default - change to False to use text mode
+    # Start in text mode by default - change to True to test voice when dependencies work
     assistant = Assistant(use_voice=True)
     assistant.run()

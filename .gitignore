@@ -2,3 +2,5 @@ venv/
 .env
 __pycache__/
 vosk_model/
+client_secret_*.json
+credentials.json
