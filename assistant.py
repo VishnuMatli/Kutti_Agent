@@ -409,65 +409,115 @@ class Assistant:
         self.speak(f"Today is {current_date}")
     
     def send_email(self):
-        """Send a simple email (requires configuration)"""
-        # Determine if we are in interactive mode (terminal)
-        interactive = sys.stdin.isatty()
+        """Send email using Gmail API (Google Workspace)"""
+        self.speak("I'll help you send an email via Gmail.")
         
-        self.speak("I'll help you send an email.")
-        
-        # Get details: if interactive, prompt; else use environment variables
-        if interactive:
-            to = input(f"To: ") or self.email_to or ""
-            if not to:
-                to = input("To: ")
-            subject = input(f"Subject: ") or self.email_subject or ""
-            if not subject:
-                subject = input("Subject: ")
-            body = input(f"Body: ") or self.email_body or ""
-            if not body:
-                body = input("Body: ")
-            sender_email = self.email_user or input("Your email address: ")
-            password = self.email_app_password or input("Your email app password: ")
-        else:
-            # Non-interactive: rely on environment variables
+        # Get details
+        to = self._get_response(f"To: [{self.email_to or ''}]: ")
+        if not to:
             to = self.email_to
+        if not to:
+            to = self._get_response("To: ")
+        
+        subject = self._get_response(f"Subject: [{self.email_subject or ''}]: ")
+        if not subject:
             subject = self.email_subject
-            body = self.email_body
-            sender_email = self.email_user
-            password = self.email_app_password
-            # If any missing, we cannot send
-            if not all([to, subject, body, sender_email, password]):
-                missing = []
-                if not to: missing.append("To (EMAIL_TO)")
-                if not subject: missing.append("Subject (EMAIL_SUBJECT)")
-                if not body: missing.append("Body (EMAIL_BODY)")
-                if not sender_email: missing.append("From (EMAIL_USER)")
-                if not password: missing.append("Password (EMAIL_APP_PASSWORD)")
-                self.speak(f"Email sending skipped: missing {', '.join(missing)}. Set these in .env or run in interactive mode.")
-                return
+        if not subject:
+            subject = self._get_response("Subject: ")
+        
+        raw_body = self._get_response(f"Body: [{self.email_body or ''}]: ")
+        if not raw_body:
+            raw_body = self.email_body
+        if not raw_body:
+            raw_body = self._get_response("Body: ")
+        
+        # Rewrite body using LLM
+        self.speak("Let me think about how to phrase your message...")
+        rewrite_prompt = f"Please rewrite the following email body to be clear, polite, and professional, preserving the original meaning:\n\n{raw_body}"
+        rewritten_body = self.query_llm(rewrite_prompt)
+        # If LLM fails, fallback to raw body
+        if rewritten_body.startswith("Sorry, I encountered an error") or not rewritten_body:
+            self.speak("I couldn't rewrite the body; using your original text.")
+            rewritten_body = raw_body
+        
+        # Show preview (print and optionally speak)
+        print("\n--- Email Preview ---")
+        print(f"From: {self.email_user}")
+        print(f"To: {to}")
+        print(f"Subject: {subject}")
+        print("Body:")
+        print(rewritten_body)
+        print("---------------------\n")
+        
+        if self.use_voice:
+            preview_speech = f"From: {self.email_user}. To: {to}. Subject: {subject}. Body: {rewritten_body}"
+            self.speak(preview_speech)
+        
+        # Ask for confirmation
+        confirm = self._get_response("Send this email? (yes/no): ").lower()
+        if confirm not in ("yes", "y"):
+            self.speak("Email sending cancelled.")
+            return
         
         try:
-            # Create message
-            msg = MIMEMultipart()
-            msg['From'] = sender_email
-            msg['To'] = to
-            msg['Subject'] = subject
+            # --- GMAIL API IMPLEMENTATION ---
+            import os
+            import base64
+            from email.mime.text import MIMEText
+            from google.oauth2.credentials import Credentials
+            from google_auth_oauthlib.flow import InstalledAppFlow
+            from googleapiclient.discovery import build
+            from google.auth.transport.requests import Request
             
-            msg.attach(MIMEText(body, 'plain'))
+            # If modifying these scopes, delete the file token.json.
+            SCOPES = ['https://www.googleapis.com/auth/gmail.send']
             
-            # Send email
-            server = smtplib.SMTP('smtp.gmail.com', 587)
-            server.starttls()
-            server.login(sender_email, password)
-            text = msg.as_string()
-            server.sendmail(sender_email, to, text)
-            server.quit()
+            # The file token.json stores the user's access and refresh tokens, and is
+            # created automatically when the authorization flow completes for the first
+            # time.
+            creds = None
+            token_path = 'token.json'
+            credentials_path = 'credentials.json'
             
-            self.speak("Email sent successfully")
+            # Check if token.json exists
+            if os.path.exists(token_path):
+                creds = Credentials.from_authorized_user_file(token_path, SCOPES)
+            # If there are no (valid) credentials available, let the user log in.
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+                else:
+                    if not os.path.exists(credentials_path):
+                        self.speak(f"Error: {credentials_path} not found. Please download OAuth 2.0 credentials from Google Cloud Console.")
+                        return
+                    flow = InstalledAppFlow.from_client_secrets_file(
+                        credentials_path, SCOPES)
+                    creds = flow.run_local_server(port=0)
+                # Save the credentials for the next run
+                with open(token_path, 'w') as token:
+                    token.write(creds.to_json())
+            
+            # Build the Gmail service
+            service = build('gmail', 'v1', credentials=creds)
+            
+            # Create the email message
+            message = MIMEText(rewritten_body)
+            message['to'] = to
+            message['from'] = self.email_user
+            message['subject'] = subject
+            
+            # Encode the message
+            raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+            message_body = {'raw': raw_message}
+            
+            # Send the email
+            sent_message = service.users().messages().send(userId="me", body=message_body).execute()
+            
+            self.speak(f"Email sent successfully! Message ID: {sent_message['id']}")
+        
         except Exception as e:
-            print(f"Email error: {e}")
-            self.speak("Sorry, I couldn't send the email. Please check your email configuration.")
-
+            print(f"Gmail API error: {e}")
+            self.speak("Sorry, I couldn't send the email via Gmail. Please check your Google Workspace configuration and ensure credentials.json is present.")
     def run(self):
         """Main loop for the assistant"""
         self.speak("Assistant initialized. Waiting for wake word 'Hey Kutti'...")
